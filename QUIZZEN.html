@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base target="_top">
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.21.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, update, get, remove } from "https://www.gstatic.com/firebasejs/9.21.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "",
+      authDomain: "quizmasterservice.firebaseapp.com",
+      projectId: "quizmasterservice",
+      storageBucket: "quizmasterservice.firebasestorage.app",
+      messagingSenderId: "706214541060",
+      appId: "1:706214541060:web:763ac10e8d2d19cff84251",
+      databaseURL: "https://quizmasterservice-default-rtdb.europe-west1.firebasedatabase.app"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const buzzSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+    let questions = [];
+    let currentQuestionIndex = 0;
+    let buzzCountdownInterval = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const playerContainer = document.getElementById("playerContainer");
+      const gameMasterBox = document.getElementById("gameMasterBox");
+      const resetInput = document.getElementById("resetCode");
+      const resetBtn = document.getElementById("resetGame");
+      const setupScreen = document.getElementById("setupScreen");
+      const playerCountInput = document.getElementById("playerCount");
+      const startBtn = document.getElementById("startGame");
+      const gmAvatarImg = document.getElementById("gmAvatarImg");
+      const avatarUpload = document.getElementById("avatarUpload");
+      const themeSelect = document.getElementById("themeSelect");
+      const questionUpload = document.getElementById("questionUpload");
+      const questionBox = document.getElementById("questionBox");
+      const nextQuestionBtn = document.getElementById("nextQuestion");
+      const prevQuestionBtn = document.getElementById("prevQuestion");
+      const questionDisplay = document.getElementById("questionDisplay");
+
+      avatarUpload.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          gmAvatarImg.src = event.target.result;
+          gmAvatarImg.style.display = 'block';
+          set(ref(db, 'settings/avatar'), event.target.result);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      onValue(ref(db, 'settings/avatar'), snapshot => {
+        const val = snapshot.val();
+        if (val) {
+        gmAvatarImg.src = val;
+        gmAvatarImg.style.display = 'block';
+        }
+      });
+
+
+      themeSelect.addEventListener("change", () => {
+        document.body.style.backgroundImage = `url('${themeSelect.value}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundRepeat = 'no-repeat';
+        set(ref(db, 'settings/theme'), themeSelect.value);
+      });
+      onValue(ref(db, 'settings/theme'), snapshot => {
+        const val = snapshot.val();
+        if (val) {
+        document.body.style.backgroundImage = `url('${val}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundRepeat = 'no-repeat';
+        themeSelect.value = val;
+        }
+      });
+
+      questionUpload.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          questions = event.target.result.split(/\r?\n/).filter(q => q.trim() !== "");
+          set(ref(db, 'settings/questions'), questions);
+          set(ref(db, 'settings/currentIndex'), 0);
+        };
+        reader.readAsText(file);
+      });
+
+onValue(ref(db, 'settings/questions'), snapshot => {
+  const val = snapshot.val();
+  if (val && Array.isArray(val)) {
+    questions = val;
+    if (questions.length > 0) {
+      currentQuestionIndex = 0;
+      set(ref(db, 'settings/currentIndex'), 0); // synchronisiere Startfrage
+      questionDisplay.innerText = `Frage 1: ${questions[0]}`;
+    }
+  }
+});
+
+      onValue(ref(db, 'settings/currentIndex'), snapshot => {
+        const idx = snapshot.val();
+        if (typeof idx === "number" && questions.length > 0 && idx < questions.length) {
+        currentQuestionIndex = idx;
+        questionDisplay.innerText = `Frage ${currentQuestionIndex + 1}: ${questions[currentQuestionIndex]}`;
+        }
+      });
+
+      
+      nextQuestionBtn.addEventListener("click", () => {
+  if (questions.length > 0 && currentQuestionIndex < questions.length - 1) {
+    currentQuestionIndex++;
+    set(ref(db, 'settings/currentIndex'), currentQuestionIndex);
+  } else {
+    questionDisplay.innerText = "Keine weiteren Fragen.";
+  }
+});
+
+prevQuestionBtn.addEventListener("click", () => {
+  if (questions.length > 0 && currentQuestionIndex > 0) {
+    currentQuestionIndex--;
+    set(ref(db, 'settings/currentIndex'), currentQuestionIndex);
+  } else {
+    questionDisplay.innerText = "Keine frühere Frage.";
+  }
+});
+
+function renderPlayers(players) {
+  playerContainer.innerHTML = "";
+  for (let id in players) {
+    const p = players[id];
+    const existingInput = document.getElementById(`answer-${id}`);
+    const currentVal = existingInput ? existingInput.value : "";  // eingegebener Text merken
+
+    const div = document.createElement("div");
+    div.className = "player-box";
+
+    if (!p.confirmed) {
+      div.innerHTML = `
+        <input id="name-${id}" value="${p.name || ''}" placeholder="Name eingeben" />
+        <button onclick="confirmPlayer('${id}')">✔</button>
+      `;
+    } else {
+      const antwortAnzeige = p.reveal
+        ? `<div><em>Antwort: ${p.answer || "(leer)"}</em></div>`
+        : p.answer
+        ? `<div style="color:green;">Antwort gespeichert ✅</div>`
+        : `<div style="color:gray;">Noch keine Antwort</div>`;
+
+      const eingabeFeld = p.reveal
+        ? ''
+        : `
+          <input placeholder="Antwort eingeben..." id="answer-${id}" value="${currentVal}" />
+          <button onclick="saveAnswer('${id}')">Antwort speichern</button>
+        `;
+
+      div.innerHTML = `
+        <strong>${p.name}</strong><br>
+        <span>${p.score} Punkte</span><br>
+        <button onclick="buzz('${id}')">BUZZ</button><br>
+        ${eingabeFeld}
+        ${antwortAnzeige}
+      `;
+
+      if (p.buzzed) div.style.backgroundColor = "gold";
+      else div.style.backgroundColor = "";
+    }
+
+    playerContainer.appendChild(div);
+  }
+}
+
+
+      onValue(ref(db, 'players'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          setupScreen.style.display = 'none';
+          avatarUpload.style.display = 'none';
+          themeSelect.style.display = 'none';
+          questionUpload.style.display = 'none';
+          questionBox.style.display = 'block';
+          renderPlayers(data);
+        }
+      });
+
+      window.confirmPlayer = (id) => {
+        const nameField = document.getElementById("name-" + id);
+        const name = nameField?.value.trim();
+        if (!name) return alert("Bitte Namen eingeben.");
+        update(ref(db, 'players/' + id), {
+          name,
+          confirmed: true
+        });
+      };
+
+      window.saveAnswer = (id) => {
+        const val = document.getElementById("answer-" + id)?.value;
+        update(ref(db, 'players/' + id), { answer: val || "" });
+      };
+
+window.buzz = async (id) => {
+  const snap = await get(ref(db, 'buzz/first'));
+  if (!snap.exists()) {
+    buzzSound.play();
+    set(ref(db, 'buzz/first'), id);
+    update(ref(db, 'players/' + id), { buzzed: true });
+
+    // Timer starten
+    clearInterval(buzzCountdownInterval); // vorherigen Timer stoppen
+    let timeLeft = 15;
+    document.getElementById("buzzTimer").innerText = `⏱️ ${timeLeft}s`;
+
+    buzzCountdownInterval = setInterval(() => {
+      timeLeft--;
+      if (timeLeft <= 0) {
+        clearInterval(buzzCountdownInterval);
+        document.getElementById("buzzTimer").innerText = "⏱️ Zeit abgelaufen!";
+      } else {
+        document.getElementById("buzzTimer").innerText = `⏱️ ${timeLeft}s`;
+      }
+    }, 1000);
+  }
+};
+
+
+
+      document.getElementById("gmPointFirst").addEventListener("click", async () => {
+        const firstSnap = await get(ref(db, 'buzz/first'));
+        if (firstSnap.exists()) {
+          const id = firstSnap.val();
+          const playerSnap = await get(ref(db, 'players/' + id));
+          const currentScore = playerSnap.val().score || 0;
+          update(ref(db, 'players/' + id), { score: currentScore + 3 });
+          clearInterval(buzzCountdownInterval);
+document.getElementById("buzzTimer").innerText = "⏱️";
+        }
+        set(ref(db, 'buzz/first'), null);
+        const playersSnap = await get(ref(db, 'players'));
+        if (playersSnap.exists()) {
+          const updates = {};
+          for (let id in playersSnap.val()) {
+            updates['players/' + id + '/buzzed'] = false;
+          }
+          update(ref(db), updates);
+        }
+      });
+
+      document.getElementById("gmPointOthers").addEventListener("click", async () => {
+        const firstSnap = await get(ref(db, 'buzz/first'));
+        const playersSnap = await get(ref(db, 'players'));
+        if (firstSnap.exists() && playersSnap.exists()) {
+          const firstId = firstSnap.val();
+          const updates = {};
+          const players = playersSnap.val();
+          for (let id in players) {
+            if (id !== firstId) {
+              const current = players[id].score || 0;
+              updates['players/' + id + '/score'] = current + 1;
+            }
+            updates['players/' + id + '/buzzed'] = false;
+          }
+          update(ref(db), updates);
+        }
+        set(ref(db, 'buzz/first'), null);
+        clearInterval(buzzCountdownInterval);
+document.getElementById("buzzTimer").innerText = "⏱️";
+      });
+
+      document.getElementById("gmReveal").addEventListener("click", async () => {
+        const playersSnap = await get(ref(db, 'players'));
+        if (playersSnap.exists()) {
+          const updates = {};
+          for (let id in playersSnap.val()) {
+            updates['players/' + id + '/reveal'] = true;
+          }
+          update(ref(db), updates);
+        }
+      });
+
+      document.getElementById("gmClear").addEventListener("click", async () => {
+        const playersSnap = await get(ref(db, 'players'));
+        if (playersSnap.exists()) {
+          const updates = {};
+          for (let id in playersSnap.val()) {
+            updates['players/' + id + '/answer'] = "";
+            updates['players/' + id + '/reveal'] = false;
+            updates['players/' + id + '/buzzed'] = false;
+          }
+          update(ref(db), updates);
+        }
+        set(ref(db, 'buzz/first'), null);
+        clearInterval(buzzCountdownInterval);
+document.getElementById("buzzTimer").innerText = "⏱️";
+      });
+
+      resetBtn.addEventListener("click", async () => {
+        const code = resetInput.value.trim();
+        if (!code) return alert("Bitte einen Reset-Code eingeben.");
+        const snapshot = await get(ref(db, 'resetCode'));
+        const storedCode = snapshot.exists() ? snapshot.val() : "";
+        if (code === storedCode || code === "gobacktostart") {
+          await remove(ref(db, 'players'));
+          await set(ref(db, 'buzz/first'), null);
+          setupScreen.style.display = 'block';
+          avatarUpload.style.display = 'block';
+          themeSelect.style.display = 'inline';
+          questionUpload.style.display = 'block';
+          questionBox.style.display = 'none';
+          playerContainer.innerHTML = "";
+          document.body.style.backgroundImage = '';
+          alert("Spiel wurde zurückgesetzt.");
+        } else {
+          alert("Falscher Reset-Code.");
+        }
+        clearInterval(buzzCountdownInterval);
+document.getElementById("buzzTimer").innerText = "⏱️";
+      });
+
+      startBtn.addEventListener("click", async () => {
+        const count = parseInt(playerCountInput.value);
+        if (isNaN(count) || count < 2 || count > 6) return alert("Bitte 2–6 Spieler:innen angeben.");
+        await set(ref(db, 'players'), {});
+        for (let i = 0; i < count; i++) {
+          const id = Date.now().toString() + i;
+          await set(ref(db, 'players/' + id), {
+            name: "",
+            score: 0,
+            confirmed: false,
+            buzzed: false,
+            answer: "",
+            reveal: false
+          });
+        }
+        setupScreen.style.display = 'none';
+        avatarUpload.style.display = 'none';
+        themeSelect.style.display = 'none';
+        questionUpload.style.display = 'none';
+        questionBox.style.display = 'block';
+      });
+    });
+  </script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      margin: 0;
+      padding: 30px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      min-height: 100vh;
+    }
+    input, button, select {
+      margin: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    .player-box {
+      background-color: #fff;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px;
+      width: 250px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    #playerContainer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 1200px;
+    }
+    #gameMasterBox {
+      background: #fff;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 2px solid #333;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    #questionBox {
+      background: #fff;
+      padding: 20px;
+      margin: 10px;
+      border: 2px dashed #555;
+      border-radius: 10px;
+      max-width: 600px;
+      display: none;
+    }
+#resetConsole {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background: #eee;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #999;
+  max-width: 110px;
+  width: 90%;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#resetConsole input {
+  width: 50%;
+  box-sizing: border-box;
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+}
+
+#resetConsole button {
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+  border-radius: 8px;
+  border: none;
+  background: #dff;
+  cursor: pointer;
+}
+
+    #setupScreen {
+      background: #fff;
+      border: 2px solid #333;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+#gmAvatarImg {
+  max-width: 200px;
+  max-height: 200px;
+  margin: 10px auto;
+  display: none;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+#timerBox {
+  background: #fff;
+  border: 3px solid #d33;
+  border-radius: 12px;
+  padding: 15px 25px;
+  margin: 20px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  max-width: 300px;
+}
+
+#buzzTimer {
+  font-size: 32px;
+  font-weight: bold;
+  color: darkred;
+}
+  </style>
+</head>
+<body>
+  <div id="setupScreen">
+    <h2>Spiel starten</h2>
+    <label>Anzahl Spieler:innen:</label><br>
+    <input type="number" id="playerCount" min="2" max="6" /><br>
+    <input type="file" id="avatarUpload" accept="image/*"><br>
+    <label>🎨 Hintergrund-Theme:</label><br>
+    <select id="themeSelect">
+      <option value="">-- Bitte auswählen --</option>
+      <option value="https://images.unsplash.com/photo-1508780709619-79562169bc64">Landschaft</option>
+      <option value="https://imgur.com/zE6mVOH.png">Dark</option>
+      <option value="https://images.unsplash.com/photo-1557682250-33bd709cbe85">Spiel-Design</option>
+      <option value="https://imgur.com/V5unCYE.png">Magic</option>
+    </select><br>
+    <label>📄 Fragen (.txt, eine pro Zeile):</label><br>
+    <input type="file" id="questionUpload" accept=".txt"><br>
+    <button id="startGame">Los geht's!</button>
+  </div>
+
+
+
+  <div id="gameMasterBox">
+    <h2>🎮 GameMaster</h2>
+    <img id="gmAvatarImg" src="" alt="Avatar" style="max-width:100px; display:none"><br>
+    <button id="gmPointFirst">✅ Punkt an Schnellste:n</button>
+    <button id="gmPointOthers">📢 Punkt an alle anderen</button>
+    <button id="gmReveal">🔍 Antworten aufdecken</button>
+    <button id="gmClear">🧹 Antworten zurücksetzen</button>
+  </div>
+
+<div id="timerBox">
+  <div id="buzzTimer">⏱️</div>
+</div>
+
+
+    <div id="questionBox" style="display:none">
+    <h3 id="questionDisplay">Fragen erscheinen hier…</h3>
+    <button id="prevQuestion">⬅️ Vorherige Frage</button>
+    <button id="nextQuestion">➡️ Nächste Frage</button>
+  </div>
+
+<div id="resetConsole">
+  <input type="text" id="resetCode" placeholder="Reset-Code...">
+  <button id="resetGame">🔄</button>
+</div>
+
+  <div id="playerContainer" style="display: flex; flex-wrap: wrap; justify-content: center; max-width: 1200px;"></div>
+</body>
+</html>
