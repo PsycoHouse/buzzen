@@ -301,11 +301,11 @@ document.getElementById("buzzTimer").innerText = "⏱️";
       });
 
       resetBtn.addEventListener("click", async () => {
-        const code = resetInput.value.trim();
+        const code = resetInput.value.trim().toLowerCase();
         if (!code) return alert("Bitte einen Reset-Code eingeben.");
         const snapshot = await get(ref(db, 'resetCode'));
         const storedCode = snapshot.exists() ? snapshot.val() : "";
-        if (code === storedCode || code === "gobacktostart") {
+        if (code === storedCode.toLowerCase() || code === "gobacktostart") {
           await remove(ref(db, 'players'));
           await set(ref(db, 'buzz/first'), null);
           setupScreen.style.display = 'block';
