@@ -37,6 +37,8 @@
       const avatarUpload = document.getElementById("avatarUpload");
       const themeSelect = document.getElementById("themeSelect");
       const questionUpload = document.getElementById("questionUpload");
+      const videoInput = document.getElementById("videoURL");
+      const youtubePlayer = document.getElementById("youtubePlayer");
       const questionBox = document.getElementById("questionBox");
       const nextQuestionBtn = document.getElementById("nextQuestion");
       const prevQuestionBtn = document.getElementById("prevQuestion");
@@ -78,6 +80,22 @@
         document.body.style.backgroundPosition = 'center';
         document.body.style.backgroundRepeat = 'no-repeat';
         themeSelect.value = val;
+        }
+      });
+
+      videoInput.addEventListener("change", () => {
+        set(ref(db, 'settings/videoURL'), videoInput.value.trim());
+      });
+      onValue(ref(db, 'settings/videoURL'), snapshot => {
+        const val = snapshot.val();
+        if (val) {
+          const idMatch = val.match(/(?:v=|be\/)([^&#]+)/);
+          const vid = idMatch ? idMatch[1] : val;
+          youtubePlayer.src = `https://www.youtube.com/embed/${vid}`;
+          document.getElementById('videoContainer').style.display = 'block';
+        } else {
+          youtubePlayer.src = '';
+          document.getElementById('videoContainer').style.display = 'none';
         }
       });
 
@@ -312,6 +330,8 @@ document.getElementById("buzzTimer").innerText = "⏱️";
           avatarUpload.style.display = 'block';
           themeSelect.style.display = 'inline';
           questionUpload.style.display = 'block';
+          videoInput.style.display = 'block';
+          document.getElementById('videoContainer').style.display = 'none';
           questionBox.style.display = 'none';
           playerContainer.innerHTML = "";
           document.body.style.backgroundImage = '';
@@ -342,6 +362,7 @@ document.getElementById("buzzTimer").innerText = "⏱️";
         avatarUpload.style.display = 'none';
         themeSelect.style.display = 'none';
         questionUpload.style.display = 'none';
+        videoInput.style.display = 'none';
         questionBox.style.display = 'block';
       });
     });
@@ -486,6 +507,8 @@ document.getElementById("buzzTimer").innerText = "⏱️";
     </select><br>
     <label>📄 Fragen (.txt, eine pro Zeile):</label><br>
     <input type="file" id="questionUpload" accept=".txt"><br>
+    <label>🎥 YouTube-Video URL:</label><br>
+    <input type="text" id="videoURL" placeholder="https://www.youtube.com/watch?v=..."><br>
     <button id="startGame">Los geht's!</button>
   </div>
 
@@ -502,6 +525,10 @@ document.getElementById("buzzTimer").innerText = "⏱️";
 
 <div id="timerBox">
   <div id="buzzTimer">⏱️</div>
+</div>
+
+<div id="videoContainer" style="display:none; margin:20px;">
+  <iframe id="youtubePlayer" width="560" height="315" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 </div>
 
 
