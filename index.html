@@ -43,6 +43,47 @@
       const nextQuestionBtn = document.getElementById("nextQuestion");
       const prevQuestionBtn = document.getElementById("prevQuestion");
       const questionDisplay = document.getElementById("questionDisplay");
+      const videoContainer = document.getElementById("videoContainer");
+
+      let draggingVideo = false;
+      let dragOffsetX = 0;
+      let dragOffsetY = 0;
+
+      const startDrag = (clientX, clientY) => {
+        draggingVideo = true;
+        dragOffsetX = clientX - videoContainer.offsetLeft;
+        dragOffsetY = clientY - videoContainer.offsetTop;
+        videoContainer.style.cursor = 'grabbing';
+      };
+
+      const doDrag = (clientX, clientY) => {
+        if (!draggingVideo) return;
+        videoContainer.style.left = `${clientX - dragOffsetX}px`;
+        videoContainer.style.top = `${clientY - dragOffsetY}px`;
+      };
+
+      const endDrag = () => {
+        draggingVideo = false;
+        videoContainer.style.cursor = 'grab';
+      };
+
+      videoContainer.addEventListener('mousedown', e => {
+        startDrag(e.clientX, e.clientY);
+      });
+      document.addEventListener('mousemove', e => {
+        doDrag(e.clientX, e.clientY);
+      });
+      document.addEventListener('mouseup', endDrag);
+      videoContainer.addEventListener('touchstart', e => {
+        const t = e.touches[0];
+        startDrag(t.clientX, t.clientY);
+        e.preventDefault();
+      });
+      document.addEventListener('touchmove', e => {
+        const t = e.touches[0];
+        doDrag(t.clientX, t.clientY);
+      });
+      document.addEventListener('touchend', endDrag);
 
       avatarUpload.addEventListener("change", (e) => {
         const file = e.target.files[0];
@@ -489,6 +530,14 @@ document.getElementById("buzzTimer").innerText = "⏱️";
   font-weight: bold;
   color: darkred;
 }
+
+#videoContainer {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  margin: 20px;
+  cursor: grab;
+}
   </style>
 </head>
 <body>
@@ -527,7 +576,7 @@ document.getElementById("buzzTimer").innerText = "⏱️";
   <div id="buzzTimer">⏱️</div>
 </div>
 
-<div id="videoContainer" style="display:none; margin:20px;">
+<div id="videoContainer" style="display:none;">
   <iframe id="youtubePlayer" width="560" height="315" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 </div>
 
