@@ -46,6 +46,7 @@
       const prevQuestionBtn = document.getElementById("prevQuestion");
       const questionDisplay = document.getElementById("questionDisplay");
       const videoContainer = document.getElementById("videoContainer");
+      const toggleVideoBtn = document.getElementById("toggleVideoContainer");
 
       let draggingVideo = false;
       let dragOffsetX = 0;
@@ -86,6 +87,16 @@
         doDrag(t.clientX, t.clientY);
       });
       document.addEventListener('touchend', endDrag);
+
+      toggleVideoBtn.addEventListener('click', () => {
+        if (videoContainer.classList.contains('minimized')) {
+          videoContainer.classList.remove('minimized');
+          toggleVideoBtn.innerHTML = '➖';
+        } else {
+          videoContainer.classList.add('minimized');
+          toggleVideoBtn.innerHTML = '<img src="https://www.youtube.com/favicon.ico" alt="YouTube" width="24" height="24">';
+        }
+      });
 
       avatarUpload.addEventListener("change", (e) => {
         const file = e.target.files[0];
@@ -138,11 +149,15 @@
           const idMatch = val.match(/(?:v=|be\/)([^&#]+)/);
           const vid = idMatch ? idMatch[1] : val;
           youtubePlayer.src = `https://www.youtube.com/embed/${vid}`;
-          document.getElementById('videoContainer').style.display = 'block';
+          videoContainer.style.display = 'block';
+          videoContainer.classList.remove('minimized');
+          toggleVideoBtn.innerHTML = '➖';
           videoInputMain.value = val;
         } else {
           youtubePlayer.src = '';
-          document.getElementById('videoContainer').style.display = 'none';
+          videoContainer.style.display = 'none';
+          videoContainer.classList.remove('minimized');
+          toggleVideoBtn.innerHTML = '➖';
           videoInputMain.value = '';
         }
       });
@@ -555,6 +570,27 @@ document.getElementById("buzzTimer").innerText = "⏱️";
 #videoContainer input {
   width: 90%;
 }
+#toggleVideoContainer {
+  align-self: flex-end;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 18px;
+}
+#videoContainer.minimized {
+  width: 50px;
+  height: 50px;
+  padding: 5px;
+}
+#videoContainer.minimized iframe,
+#videoContainer.minimized input,
+#videoContainer.minimized button#changeVideoURL {
+  display: none;
+}
+#videoContainer.minimized #toggleVideoContainer {
+  width: 32px;
+  height: 32px;
+}
   </style>
 </head>
 <body>
@@ -593,11 +629,12 @@ document.getElementById("buzzTimer").innerText = "⏱️";
   <div id="buzzTimer">⏱️</div>
 </div>
 
-<div id="videoContainer" style="display:none;">
-  <iframe id="youtubePlayer" width="560" height="315" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-  <input type="text" id="videoURLMain" placeholder="https://www.youtube.com/watch?v=...">
-  <button id="changeVideoURL">Aktualisieren</button>
-</div>
+  <div id="videoContainer" style="display:none;">
+    <button id="toggleVideoContainer">➖</button>
+    <iframe id="youtubePlayer" width="560" height="315" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    <input type="text" id="videoURLMain" placeholder="https://www.youtube.com/watch?v=...">
+    <button id="changeVideoURL">Aktualisieren</button>
+  </div>
 
 
     <div id="questionBox" style="display:none">
