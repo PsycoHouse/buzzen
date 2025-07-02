@@ -24,6 +24,7 @@
     let questions = [];
     let currentQuestionIndex = 0;
     let buzzCountdownInterval = null;
+    const BUZZ_TIME_LIMIT = 15;
 
     document.addEventListener("DOMContentLoaded", () => {
       const playerContainer = document.getElementById("playerContainer");
@@ -41,6 +42,27 @@
       const nextQuestionBtn = document.getElementById("nextQuestion");
       const prevQuestionBtn = document.getElementById("prevQuestion");
       const questionDisplay = document.getElementById("questionDisplay");
+
+      onValue(ref(db, 'buzz/timerStart'), snap => {
+        clearInterval(buzzCountdownInterval);
+        const start = snap.val();
+        if (start) {
+          const updateTimer = () => {
+            const elapsed = Math.floor((Date.now() - start) / 1000);
+            const left = BUZZ_TIME_LIMIT - elapsed;
+            if (left <= 0) {
+              document.getElementById('buzzTimer').innerText = '⏱️ Zeit abgelaufen!';
+              clearInterval(buzzCountdownInterval);
+            } else {
+              document.getElementById('buzzTimer').innerText = `⏱️ ${left}s`;
+            }
+          };
+          updateTimer();
+          buzzCountdownInterval = setInterval(updateTimer, 1000);
+        } else {
+          document.getElementById('buzzTimer').innerText = '⏱️';
+        }
+      });
 
       avatarUpload.addEventListener("change", (e) => {
         const file = e.target.files[0];
@@ -211,21 +233,7 @@ window.buzz = async (id) => {
     buzzSound.play();
     set(ref(db, 'buzz/first'), id);
     update(ref(db, 'players/' + id), { buzzed: true });
-
-    // Timer starten
-    clearInterval(buzzCountdownInterval); // vorherigen Timer stoppen
-    let timeLeft = 15;
-    document.getElementById("buzzTimer").innerText = `⏱️ ${timeLeft}s`;
-
-    buzzCountdownInterval = setInterval(() => {
-      timeLeft--;
-      if (timeLeft <= 0) {
-        clearInterval(buzzCountdownInterval);
-        document.getElementById("buzzTimer").innerText = "⏱️ Zeit abgelaufen!";
-      } else {
-        document.getElementById("buzzTimer").innerText = `⏱️ ${timeLeft}s`;
-      }
-    }, 1000);
+    set(ref(db, 'buzz/timerStart'), Date.now());
   }
 };
 
@@ -242,6 +250,7 @@ window.buzz = async (id) => {
 document.getElementById("buzzTimer").innerText = "⏱️";
         }
         set(ref(db, 'buzz/first'), null);
+        set(ref(db, 'buzz/timerStart'), null);
         const playersSnap = await get(ref(db, 'players'));
         if (playersSnap.exists()) {
           const updates = {};
@@ -269,8 +278,9 @@ document.getElementById("buzzTimer").innerText = "⏱️";
           update(ref(db), updates);
         }
         set(ref(db, 'buzz/first'), null);
+        set(ref(db, 'buzz/timerStart'), null);
         clearInterval(buzzCountdownInterval);
-document.getElementById("buzzTimer").innerText = "⏱️";
+        document.getElementById("buzzTimer").innerText = "⏱️";
       });
 
       document.getElementById("gmReveal").addEventListener("click", async () => {
@@ -296,8 +306,9 @@ document.getElementById("buzzTimer").innerText = "⏱️";
           update(ref(db), updates);
         }
         set(ref(db, 'buzz/first'), null);
+        set(ref(db, 'buzz/timerStart'), null);
         clearInterval(buzzCountdownInterval);
-document.getElementById("buzzTimer").innerText = "⏱️";
+        document.getElementById("buzzTimer").innerText = "⏱️";
       });
 
       resetBtn.addEventListener("click", async () => {
@@ -308,6 +319,7 @@ document.getElementById("buzzTimer").innerText = "⏱️";
         if (code === storedCode.toLowerCase() || code === "gobacktostart") {
           await remove(ref(db, 'players'));
           await set(ref(db, 'buzz/first'), null);
+          await set(ref(db, 'buzz/timerStart'), null);
           setupScreen.style.display = 'block';
           avatarUpload.style.display = 'block';
           themeSelect.style.display = 'inline';
@@ -320,7 +332,8 @@ document.getElementById("buzzTimer").innerText = "⏱️";
           alert("Falscher Reset-Code.");
         }
         clearInterval(buzzCountdownInterval);
-document.getElementById("buzzTimer").innerText = "⏱️";
+        set(ref(db, 'buzz/timerStart'), null);
+        document.getElementById("buzzTimer").innerText = "⏱️";
       });
 
       startBtn.addEventListener("click", async () => {
