@@ -39,6 +39,8 @@
       const questionUpload = document.getElementById("questionUpload");
       const videoInput = document.getElementById("videoURL");
       const youtubePlayer = document.getElementById("youtubePlayer");
+      const videoInputMain = document.getElementById("videoURLMain");
+      const changeVideoBtn = document.getElementById("changeVideoURL");
       const questionBox = document.getElementById("questionBox");
       const nextQuestionBtn = document.getElementById("nextQuestion");
       const prevQuestionBtn = document.getElementById("prevQuestion");
@@ -127,6 +129,9 @@
       videoInput.addEventListener("change", () => {
         set(ref(db, 'settings/videoURL'), videoInput.value.trim());
       });
+      changeVideoBtn.addEventListener("click", () => {
+        set(ref(db, 'settings/videoURL'), videoInputMain.value.trim());
+      });
       onValue(ref(db, 'settings/videoURL'), snapshot => {
         const val = snapshot.val();
         if (val) {
@@ -134,9 +139,11 @@
           const vid = idMatch ? idMatch[1] : val;
           youtubePlayer.src = `https://www.youtube.com/embed/${vid}`;
           document.getElementById('videoContainer').style.display = 'block';
+          videoInputMain.value = val;
         } else {
           youtubePlayer.src = '';
           document.getElementById('videoContainer').style.display = 'none';
+          videoInputMain.value = '';
         }
       });
 
@@ -541,6 +548,12 @@ document.getElementById("buzzTimer").innerText = "⏱️";
   border-radius: 10px;
   padding: 5px;
   background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#videoContainer input {
+  width: 90%;
 }
   </style>
 </head>
@@ -582,6 +595,8 @@ document.getElementById("buzzTimer").innerText = "⏱️";
 
 <div id="videoContainer" style="display:none;">
   <iframe id="youtubePlayer" width="560" height="315" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+  <input type="text" id="videoURLMain" placeholder="https://www.youtube.com/watch?v=...">
+  <button id="changeVideoURL">Aktualisieren</button>
 </div>
 
 
